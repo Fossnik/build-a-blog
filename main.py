@@ -28,20 +28,21 @@ class Handler(webapp2.RequestHandler):
 # Root page - Just a link to /blog
 class MainPage(Handler):
 	def get(self):
-		self.write('<a href="/blog">blog</a>')
+		self.write('<a href="/blog">BLOG - CLICK HERE!</a>')
 
 # Store a blog entry "Post" in Google DB as an object with properties.
-class Post(db.Model):
+class Post(db.Model): # Inherits db library
 	title = db.StringProperty(required = True)
 	content = db.TextProperty(required = True)
-	created = db.DateTimeProperty(auto_now_add = True)
+	created = db.DateTimeProperty(auto_now_add = True) # GDB set current time.
 
 # Renders the default page where up to 5 blogs can be seen.
 class BlogFront(Handler):
 	def render_front(self):
-		# Creates a cursor for all of the posts.
+		# 'posts' is a "cursor" for all of the data returned from the query.
 		posts = db.GqlQuery("SELECT * FROM Post "
 							"ORDER BY created DESC limit 5") # limit to 5
+		# Python Equivalent: # posts = Post.all().order('-created')
 		self.render("mainblog.html", posts=posts)
 
 	def get(self):
@@ -60,29 +61,30 @@ class NewPost(Handler):
 		content = self.request.get("content")
 
 		if title and content:
-			a = Post(title = title, content = content)
-			a.put() # Puts our new "Post" object in the DB
-			self.redirect("/blog")
+			# 'unPost' is a cursor - a local, not global variable.
+			unPost = Post(title = title, content = content)
+			unPost.put() # Puts our new "Post" object in the DB
+			self.redirect('/blog/%s' % unPost.key().id())
 		else:
 			error = "Both Title and Content are Required!"
 			self.render_newpost(title, content, error)
 			return
 
-"""
-# This is for the permalinks rendering single blog posts.
-class ViewPostHandler(webapp2.RequestHandler):
+# Indivitual Posts Renderer
+class ViewPostHandler(Handler): # WHY webapp2.RequestHandlerc ??
+# class ViewPostHandler(webapp2.RequestHandler):
 	def get(self, id):
-		key = Post.get_by_id(int(id))
-		if key:
-			BlogFront.render("mainblog.html", posts=key)
+		key = db.Key.from_path('Post', int(id)) # /blog/*ID* - Get Database Key
+		unpost = Post.get(key) # Create cursor 'unpost'
+		# unpost = Post.get_by_id(int(id))
+		if unpost: # if the URL is validated to exist, then
+			self.render("mainblog.html", unpost=unpost)
 		else:
-			self.response.write('Regretably, %s is not a valid ID' % id)
+			self.response.write('Regretably, %s is not a valid ID/URL' % id)
 			return
-
-"""
 
 app = webapp2.WSGIApplication([('/', MainPage),
 								('/blog/?', BlogFront),
 								('/newpost', NewPost),
-					#			webapp2.Route('/blog/<id:\d+>', ViewPostHandler),
+								webapp2.Route('/blog/<id:\d+>', ViewPostHandler),
 								],debug=True)
